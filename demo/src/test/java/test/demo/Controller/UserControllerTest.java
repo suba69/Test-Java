@@ -2,6 +2,7 @@ package test.demo.Controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,6 +19,7 @@ import test.demo.entity.User;
 import test.demo.service.UserService;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 
@@ -34,9 +36,13 @@ public class UserControllerTest {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @BeforeEach
+    public void setUp() {
+        objectMapper.registerModule(new JavaTimeModule());
+    }
+
     @Test
     public void testCreateUserValid() throws Exception {
-
         User user = new User();
         user.setEmail("test@gmail.com");
         user.setName("Bob");
@@ -45,17 +51,13 @@ public class UserControllerTest {
         user.setBirthDay(birthDay);
         user.setNumber("+3843849394");
 
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
-        String userJson = objectMapper.writeValueAsString(user);
-
         Mockito.when(userService.existsByEmail(Mockito.anyString())).thenReturn(false);
         Mockito.when(userService.createUser(Mockito.any(User.class))).thenReturn(user);
 
         mockMvc.perform(MockMvcRequestBuilders
                         .post("/user/create")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(userJson)
+                        .content(objectMapper.writeValueAsString(user))
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(MockMvcResultMatchers.status().isOk());
 
@@ -65,7 +67,6 @@ public class UserControllerTest {
 
     @Test
     public void testCreateUserUnderAge() throws Exception {
-
         User user = new User();
         user.setEmail("test@gmail.com");
         LocalDateTime birthDay = LocalDateTime.of(2003, 1, 1, 0, 0);
@@ -85,7 +86,6 @@ public class UserControllerTest {
 
     @Test
     public void testCreateUserEmailExists() throws Exception {
-
         User user = new User();
         user.setEmail("test@email.com");
         LocalDateTime birthDay = LocalDateTime.of(2003, 1, 1, 0, 0);
@@ -105,7 +105,6 @@ public class UserControllerTest {
 
     @Test
     public void testDeleteUser() throws Exception {
-
         Long userId = 1L;
 
         Mockito.when(userService.existsById(userId)).thenReturn(true);
@@ -120,7 +119,6 @@ public class UserControllerTest {
 
     @Test
     public void testUpdateUserFields() throws Exception {
-
         Long userId = 1L;
         UserDto updateRequest = new UserDto();
         updateRequest.setEmail("new-email@email.com");
