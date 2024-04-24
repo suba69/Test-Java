@@ -59,12 +59,16 @@ public class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(user))
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(MockMvcResultMatchers.status().isOk());
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.email").value("test@gmail.com"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.name").value("Bob"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.surname").value("Mike"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.birthDay").value("2003-01-01T00:00:00Z"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.number").value("+3843849394"));
 
         Mockito.verify(userService).existsByEmail("test@gmail.com");
         Mockito.verify(userService).createUser(user);
     }
-
     @Test
     public void testCreateUserUnderAge() throws Exception {
         User user = new User();
@@ -123,26 +127,35 @@ public class UserControllerTest {
         UserDto updateRequest = new UserDto();
         updateRequest.setEmail("new-email@email.com");
 
+        updateRequest.setName("New Name");
+        updateRequest.setSurname("New Surname");
+
         User user = new User();
         user.setId(userId);
         user.setEmail("old-email@email.com");
 
         User updatedUser = new User();
         updatedUser.setId(userId);
-        updatedUser.setEmail("new-email@email.com");
+        updatedUser.setEmail(updateRequest.getEmail());
+        updatedUser.setName(updateRequest.getName());
+        updatedUser.setSurname(updateRequest.getSurname());
 
         Mockito.when(userService.updateUserFields(userId, updateRequest)).thenReturn(updatedUser);
 
+        // Act & Assert
         mockMvc.perform(MockMvcRequestBuilders
                         .put("/user/update/" + userId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"new-email@email.com\"}")
+                        .content(objectMapper.writeValueAsString(updateRequest))
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.email").value("new-email@email.com"));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.email").value(updateRequest.getEmail()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.name").value(updateRequest.getName()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.surname").value(updateRequest.getSurname()));
 
         Mockito.verify(userService).updateUserFields(userId, updateRequest);
     }
+
 
     @Test
     public void testUpdateAllUserFields() throws Exception {
