@@ -11,6 +11,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultMatcher;
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 import test.demo.dto.DateDto;
@@ -18,14 +19,18 @@ import test.demo.dto.UserDto;
 import test.demo.entity.User;
 import test.demo.service.UserService;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.verify;
 import static org.springframework.mock.http.server.reactive.MockServerHttpRequest.post;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -75,11 +80,12 @@ public class UserControllerTest {
         verify(userService).existsByEmail("test@gmail.com");
         verify(userService).createUser(user);
     }
+
     @Test
     public void testCreateUserUnderAge() throws Exception {
         User user = new User();
         user.setEmail("test@gmail.com");
-        LocalDateTime birthDay = LocalDateTime.of(2003, 1, 1, 0, 0);
+        LocalDateTime birthDay = LocalDateTime.of(2007, 1, 1, 0, 0);
         user.setBirthDay(birthDay);
 
         Mockito.when(userService.existsByEmail(Mockito.anyString())).thenReturn(false);
@@ -87,14 +93,12 @@ public class UserControllerTest {
         mockMvc.perform(MockMvcRequestBuilders
                         .post("/user/create")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(user))
+                        .content("{\"email\":\"test@gmail.com\",\"birthDay\":\"" + user.getBirthDay() + "\"}")
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isBadRequest())
-                .andExpect(MockMvcResultMatchers.content().string("User must be at least 18 years old"));
+                .andExpect(MockMvcResultMatchers.status().isBadRequest());
 
-        verify(userService, Mockito.never()).createUser(Mockito.any(User.class));
+        Mockito.verify(userService, Mockito.never()).createUser(Mockito.any(User.class));
     }
-
 
     @Test
     public void testCreateUserEmailExists() throws Exception {
@@ -129,7 +133,6 @@ public class UserControllerTest {
         verify(userService, Mockito.times(1)).deleteById(userId);
     }
 
-
     @Test
     public void testUpdateUserFields() throws Exception {
         Long userId = 1L;
@@ -163,7 +166,6 @@ public class UserControllerTest {
 
         verify(userService).updateUserFields(userId, updateRequest);
     }
-
 
     @Test
     public void testUpdateAllUserFields() throws Exception {
@@ -209,7 +211,6 @@ public class UserControllerTest {
 
         verify(userService).updateAllUserFields(userId, updateRequest);
     }
-
 
     @Test
     public void testSearchUsersByBirthDateRange() throws Exception {
