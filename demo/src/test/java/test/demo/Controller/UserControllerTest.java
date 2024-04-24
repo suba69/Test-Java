@@ -23,6 +23,12 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
 
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Mockito.verify;
+import static org.springframework.mock.http.server.reactive.MockServerHttpRequest.post;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
 @SpringBootTest
 @AutoConfigureMockMvc
 public class UserControllerTest {
@@ -59,15 +65,15 @@ public class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(user))
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.email").value("test@gmail.com"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.name").value("Bob"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.surname").value("Mike"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.birthDay").value("2003-01-01T00:00:00Z"))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.number").value("+3843849394"));
 
-        Mockito.verify(userService).existsByEmail("test@gmail.com");
-        Mockito.verify(userService).createUser(user);
+        verify(userService).existsByEmail("test@gmail.com");
+        verify(userService).createUser(user);
     }
     @Test
     public void testCreateUserUnderAge() throws Exception {
@@ -81,12 +87,14 @@ public class UserControllerTest {
         mockMvc.perform(MockMvcRequestBuilders
                         .post("/user/create")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"email\":\"test@gmail.com\",\"birthDay\":\"" + user.getBirthDay() + "\"}")
+                        .content(objectMapper.writeValueAsString(user))
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(MockMvcResultMatchers.status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(MockMvcResultMatchers.content().string("User must be at least 18 years old"));
 
-        Mockito.verify(userService, Mockito.never()).createUser(Mockito.any(User.class));
+        verify(userService, Mockito.never()).createUser(Mockito.any(User.class));
     }
+
 
     @Test
     public void testCreateUserEmailExists() throws Exception {
@@ -102,9 +110,9 @@ public class UserControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"test@email.com\",\"birthDay\":\"" + user.getBirthDay() + "\"}")
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(MockMvcResultMatchers.status().isBadRequest());
+                .andExpect(status().isBadRequest());
 
-        Mockito.verify(userService, Mockito.never()).createUser(Mockito.any(User.class));
+        verify(userService, Mockito.never()).createUser(Mockito.any(User.class));
     }
 
     @Test
@@ -115,11 +123,12 @@ public class UserControllerTest {
 
         mockMvc.perform(MockMvcRequestBuilders
                         .delete("/user/delete-user/" + userId))
-                .andExpect(MockMvcResultMatchers.status().isOk());
+                .andExpect(status().isOk());
 
-        Mockito.verify(userService).existsById(userId);
-        Mockito.verify(userService).deleteById(userId);
+        verify(userService).existsById(userId);
+        verify(userService, Mockito.times(1)).deleteById(userId);
     }
+
 
     @Test
     public void testUpdateUserFields() throws Exception {
@@ -142,24 +151,22 @@ public class UserControllerTest {
 
         Mockito.when(userService.updateUserFields(userId, updateRequest)).thenReturn(updatedUser);
 
-        // Act & Assert
         mockMvc.perform(MockMvcRequestBuilders
                         .put("/user/update/" + userId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(updateRequest))
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(status().isOk())
                 .andExpect(MockMvcResultMatchers.jsonPath("$.email").value(updateRequest.getEmail()))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.name").value(updateRequest.getName()))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.surname").value(updateRequest.getSurname()));
 
-        Mockito.verify(userService).updateUserFields(userId, updateRequest);
+        verify(userService).updateUserFields(userId, updateRequest);
     }
 
 
     @Test
     public void testUpdateAllUserFields() throws Exception {
-
         Long userId = 1L;
 
         UserDto updateRequest = new UserDto();
@@ -170,42 +177,39 @@ public class UserControllerTest {
         updateRequest.setBirthDay(birthDay);
         updateRequest.setNumber("+123456789");
 
-        ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.registerModule(new JavaTimeModule());
-        String userJson = objectMapper.writeValueAsString(updateRequest);
+        User originalUser = new User();
+        originalUser.setEmail("old-email@email.com");
+        originalUser.setName("Old Name");
+        originalUser.setSurname("Old Surname");
+        originalUser.setBirthDay(LocalDateTime.of(2001, 3, 7, 0, 0));
+        originalUser.setNumber("+53765423420");
 
-        User user = new User();
-        user.setEmail("old-email@email.com");
-        user.setName("Old Name");
-        user.setSurname("Old Surname");
-        LocalDateTime birthDayNew = LocalDateTime.of(2001, 3, 7, 0, 0);
-        user.setBirthDay(birthDay);
-        user.setNumber("+53765423420");
+        User expectedUpdatedUser = new User();
+        expectedUpdatedUser.setEmail(updateRequest.getEmail());
+        expectedUpdatedUser.setName(updateRequest.getName());
+        expectedUpdatedUser.setSurname(updateRequest.getSurname());
+        expectedUpdatedUser.setBirthDay(updateRequest.getBirthDay());
+        expectedUpdatedUser.setNumber(updateRequest.getNumber());
 
+        Mockito.when(userService.updateAllUserFields(userId, updateRequest)).thenReturn(expectedUpdatedUser);
 
-        User updatedUser = new User();
-        updatedUser.setEmail("new-email@email.com");
-        updatedUser.setName("New Name");
-        updatedUser.setSurname("New Surname");
-        updatedUser.setBirthDay(LocalDateTime.of(2002, 4, 8, 0, 0));
-        updatedUser.setNumber("+123456789");
-
-        Mockito.when(userService.updateAllUserFields(userId, updateRequest)).thenReturn(updatedUser);
+        String updateRequestJson = objectMapper.writeValueAsString(updateRequest);
 
         mockMvc.perform(MockMvcRequestBuilders
-                        .put("/user/update-all/"+ userId)
+                        .put("/user/update-all/" + userId)
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(userJson)
+                        .content(updateRequestJson)
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(MockMvcResultMatchers.status().isOk())
-                .andExpect(MockMvcResultMatchers.jsonPath("$.email").value("new-email@email.com"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.name").value("New Name"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.surname").value("New Surname"))
+                .andExpect(status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.email").value(expectedUpdatedUser.getEmail()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.name").value(expectedUpdatedUser.getName()))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.surname").value(expectedUpdatedUser.getSurname()))
                 .andExpect(MockMvcResultMatchers.jsonPath("$.birthDay").value("2002-04-08T00:00:00Z"))
-                .andExpect(MockMvcResultMatchers.jsonPath("$.number").value("+123456789"));
+                .andExpect(MockMvcResultMatchers.jsonPath("$.number").value(expectedUpdatedUser.getNumber()));
 
-        Mockito.verify(userService).updateAllUserFields(userId, updateRequest);
+        verify(userService).updateAllUserFields(userId, updateRequest);
     }
+
 
     @Test
     public void testSearchUsersByBirthDateRange() throws Exception {
